@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .chat-container {
+            display: flex;
+            height: 100vh;
+            max-width: 1200px;
+            margin: 0 auto;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .chat-sidebar {
+            width: 250px;
+            background-color: #343a40;
+            color: white;
+            padding: 20px;
+        }
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+        }
+        .chat-header {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-input {
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #ddd;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 70%;
+            position: relative;
+        }
+        .message.sender {
+            background-color: #007bff;
+            color: white;
+            align-self: flex-end;
+        }
+        .message.receiver {
+            background-color: #e9ecef;
+            align-self: flex-start;
+        }
+        .online-user {
+            padding: 5px 0;
+            border-bottom: 1px solid #444;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Sidebar -->
+        <div class="chat-sidebar">
+            <h4>Online Users</h4>
+            <ul id="online-users-list" class="list-unstyled"></ul>
+        </div>
+        <!-- Main Chat Area -->
+        <div class="chat-main">
+            <div class="chat-header">
+                <span>Welcome, {{ session.username }}!</span>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+            <div class="chat-messages" id="chat"></div>
+            <div class="chat-input">
+                <div class="input-group">
+                    <input type="text" id="message" class="form-control" placeholder="Type a message...">
+                    <button id="send" class="btn btn-primary">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const chat = document.getElementById('chat');
+        const messageInput = document.getElementById('message');
+        const sendButton = document.getElementById('send');
+        const onlineUsersList = document.getElementById('online-users-list');
+
+        // Function to send a message
+        function sendMessage() {
+            const message = messageInput.value;
+            if (message) {
+                fetch('/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message }),
+                }).then(() => {
+                    messageInput.value = '';
+                });
+            }
+        }
+
+        // Function to display a message
+        function displayMessage(sender, content) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            if (sender === '{{ session.username }}') {
+                messageElement.classList.add('sender');
+            } else {
+                messageElement.classList.add('receiver');
+            }
+            messageElement.textContent = `${sender}: ${content}`;
+            chat.appendChild(messageElement);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        // Function to update online users list
+        function updateOnlineUsers(users) {
+            onlineUsersList.innerHTML = '';
+            users.forEach(user => {
+                const userElement = document.createElement('li');
+                userElement.classList.add('online-user');
+                userElement.textContent = user;
+                onlineUsersList.appendChild(userElement);
+            });
+        }
+
+        // Function to handle logout
+        function logout() {
+            fetch('/logout')
+                .then(() => {
+                    window.location.href = '/login';
+                });
+        }
+
+        // Event listeners
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // SSE for messages
+        const eventSource = new EventSource('/stream');
+        eventSource.onmessage = (event) => {
+            const { sender, content } = JSON.parse(event.data);
+            displayMessage(sender, content);
+        };
+
+        // Fetch online users periodically
+        setInterval(() => {
+            fetch('/online_users')
+                .then(response => response.json())
+                .then(updateOnlineUsers);
+        }, 5000);
+    </script>
+</body>
+</html>
